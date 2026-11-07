@@ -1,0 +1,29 @@
+name: Isolated browser probe
+on:
+  push:
+    paths:
+      - '.github/workflows/browser-probe.yml'
+  workflow_dispatch:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Confirm Chrome extensions work
+        run: |
+          mkdir -p /tmp/extension-probe
+          echo '{"manifest_version":3,"name":"Probe","version":"1.0","background":{"service_worker":"worker.js"}}' > /tmp/extension-probe/manifest.json
+          echo 'chrome.runtime.onInstalled.addListener(() => {});' > /tmp/extension-probe/worker.js
+          cat > probe.cjs <<'EOF'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const c=await chromium.launchPersistentContext('/tmp/probe-profile',{headless:true,channel:'chromium',args:['--disable-extensions-except=/tmp/extension-probe','--load-extension=/tmp/extension-probe']});
+            try { const w=c.serviceWorkers()[0]||await c.waitForEvent('serviceworker',{timeout:20000}); console.log('EXTENSION_LOADED='+w.url()); }
+            finally { await c.close(); }
+          })().catch(e=>{console.error(e);process.exit(1)});
+          EOF
+          node probe.cjs
