@@ -38,6 +38,7 @@ with sync_playwright() as p:
       pp.goto("chrome-extension://"+extension_id+"/"+popup.lstrip("/"),wait_until="domcontentloaded",timeout=15000)
       row["popup"]=pp.url
       pp.screenshot(path=str(out/(name+"-popup.png")))
+      pp.close()
      form=context.new_page()
      form.goto("data:text/html,<html><body><form><input name='name' value='Alice'><input name='email' value='alice@example.com'><input name='phone' value='11999999999'></form></body></html>")
      row["form_page"]=form.locator("input").count()==3
@@ -72,11 +73,13 @@ with sync_playwright() as p:
        if popup_pages:
         capture=popup_pages[-1]
        else:
+        row["shortcut_did_not_open_popup"]=True
         capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
        capture.locator("#captureBtn").click()
        capture.wait_for_timeout(600)
        row["capture_status"]=capture.locator("#captureStatus").inner_text()
        capture.close()
+       source.close()
        target=context.new_page();target.goto(f"http://127.0.0.1:{server.server_port}/target")
        target.bring_to_front()
        target.keyboard.press("Control+Shift+U")
