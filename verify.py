@@ -11,6 +11,13 @@ with sync_playwright() as p:
     ext=pathlib.Path(tmp)/"extension";ext.mkdir()
     with zipfile.ZipFile(root/(name+".zip")) as z:z.extractall(ext)
     manifest=json.loads((ext/"manifest.json").read_text(encoding="utf-8-sig"))
+    # Add a temporary action keyboard shortcut to the extracted test copy only.
+    # The original archives remain unmodified.
+    if manifest.get("action"):
+     commands=manifest.setdefault("commands",{})
+     commands["_execute_action"]={"suggested_key":{"default":"Ctrl+Shift+U"},"description":"Open action for automated testing"}
+     (ext/"manifest.json").write_text(json.dumps(manifest),encoding="utf-8")
+     row["test_shortcut"]="Ctrl+Shift+U"
     row["manifest_permissions"]=manifest.get("permissions",[])
     row["host_permissions"]=manifest.get("host_permissions",[])
     row["version"]=manifest["version"]
@@ -58,17 +65,26 @@ with sync_playwright() as p:
       try:
        source=context.new_page();source.goto(f"http://127.0.0.1:{server.server_port}/source")
        source.bring_to_front()
-       source.bring_to_front()
-       source.keyboard.press("Alt+Shift+T"); source.keyboard.press("Enter")
-       source.wait_for_timeout(350)
-       capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
+       source.keyboard.press("Control+Shift+U")
+       source.wait_for_timeout(700)
+       popup_pages=[p for p in context.pages if p.url.startswith(f"chrome-extension://{extension_id}/popup.html")]
+       row["popup_pages_after_shortcut"]=[p.url for p in popup_pages]
+       if popup_pages:
+        capture=popup_pages[-1]
+       else:
+        capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
        capture.locator("#captureBtn").click()
        capture.wait_for_timeout(600)
        row["capture_status"]=capture.locator("#captureStatus").inner_text()
        capture.close()
        target=context.new_page();target.goto(f"http://127.0.0.1:{server.server_port}/target")
        target.bring_to_front()
-       match=context.new_page();match.goto(f"chrome-extension://{extension_id}/popup.html")
+       target.keyboard.press("Control+Shift+U")
+       target.wait_for_timeout(600)
+       match_pages=[p for p in context.pages if p.url.startswith(f"chrome-extension://{extension_id}/popup.html")]
+       if match_pages:match=match_pages[-1]
+       else:
+        match=context.new_page();match.goto(f"chrome-extension://{extension_id}/popup.html")
        match.locator("#prepareBtn").click()
        match.wait_for_timeout(900)
        row["match_status"]=match.locator("#matchStatus").inner_text()
