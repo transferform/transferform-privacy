@@ -1,4 +1,4 @@
-import json, pathlib, tempfile, zipfile, traceback
+import json, pathlib, tempfile, zipfile, traceback, subprocess, os, time
 from playwright.sync_api import sync_playwright
 root=pathlib.Path(__file__).parent
 out=root/"evidence";out.mkdir(exist_ok=True)
@@ -11,8 +11,10 @@ with sync_playwright() as p:
     ext=pathlib.Path(tmp)/"extension";ext.mkdir()
     with zipfile.ZipFile(root/(name+".zip")) as z:z.extractall(ext)
     manifest=json.loads((ext/"manifest.json").read_text(encoding="utf-8-sig"))
+    row["manifest_permissions"]=manifest.get("permissions",[])
+    row["host_permissions"]=manifest.get("host_permissions",[])
     row["version"]=manifest["version"]
-    context=p.chromium.launch_persistent_context(str(pathlib.Path(tmp)/"profile"),channel="chromium",headless=True,args=[f"--disable-extensions-except={ext}",f"--load-extension={ext}"])
+    context=p.chromium.launch_persistent_context(str(pathlib.Path(tmp)/"profile"),channel="chromium",headless=False,args=[f"--disable-extensions-except={ext}",f"--load-extension={ext}"])
     try:
      page=context.new_page()
      page.goto("chrome://extensions/",wait_until="domcontentloaded")
@@ -34,6 +36,12 @@ with sync_playwright() as p:
      row["form_page"]=form.locator("input").count()==3
 
      if name=="module-a" and extension_id:
+      row["test_mode"]="headed chromium under Xvfb, genuine browser toolbar activation"
+      try:
+       page.goto("chrome://extensions/shortcuts")
+       page.screenshot(path=str(out/"shortcuts.png"))
+      except Exception as e:row["shortcut_error"]=str(e)
+
       import http.server,threading
       class Handler(http.server.BaseHTTPRequestHandler):
        def do_GET(self):
@@ -50,7 +58,10 @@ with sync_playwright() as p:
       try:
        source=context.new_page();source.goto(f"http://127.0.0.1:{server.server_port}/source")
        source.bring_to_front()
-       capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html"); capture.evaluate("async () => {try {await chrome.action.openPopup()} catch(e) {console.log(String(e))}}")
+       source.bring_to_front()
+       source.keyboard.press("Control+Shift+Y")
+       source.wait_for_timeout(350)
+       capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
        capture.locator("#captureBtn").click()
        capture.wait_for_timeout(600)
        row["capture_status"]=capture.locator("#captureStatus").inner_text()
