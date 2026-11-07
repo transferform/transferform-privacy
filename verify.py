@@ -50,7 +50,7 @@ with sync_playwright() as p:
       try:
        source=context.new_page();source.goto(f"http://127.0.0.1:{server.server_port}/source")
        source.bring_to_front()
-       capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
+       capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html"); capture.evaluate("async () => {try {await chrome.action.openPopup()} catch(e) {console.log(String(e))}}")
        capture.locator("#captureBtn").click()
        capture.wait_for_timeout(600)
        row["capture_status"]=capture.locator("#captureStatus").inner_text()
