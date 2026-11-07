@@ -59,7 +59,7 @@ with sync_playwright() as p:
        source=context.new_page();source.goto(f"http://127.0.0.1:{server.server_port}/source")
        source.bring_to_front()
        source.bring_to_front()
-       source.keyboard.press("Control+Shift+Y")
+       source.keyboard.press("Alt+Shift+T"); source.keyboard.press("Enter")
        source.wait_for_timeout(350)
        capture=context.new_page();capture.goto(f"chrome-extension://{extension_id}/popup.html")
        capture.locator("#captureBtn").click()
