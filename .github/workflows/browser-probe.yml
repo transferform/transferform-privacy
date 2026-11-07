@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Restore test archives from prior commit
+        run: |
+          for n in module-a module-b module-c; do git show b533250f3864af20ab05c3d34cbba4eb4324d821:$n.zip > $n.zip; done
       - name: Install browser
         run: |
           python -m pip install playwright==1.58.0
